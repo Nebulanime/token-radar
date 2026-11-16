@@ -196,6 +196,71 @@
     });
   }
 
+  // Top movers: the week's biggest TVL moves among the pre-token rows, gainers and
+  // fallers alike. change_7d is a snapshot figure, so both lists are pure derivation
+  // from the data the page already holds — no new input, no hand-picked names.
+  function byGrowthDesc(a, b) {
+    if (b.change_7d !== a.change_7d) return b.change_7d - a.change_7d;
+    return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+  }
+  function byGrowthAsc(a, b) {
+    if (a.change_7d !== b.change_7d) return a.change_7d - b.change_7d;
+    return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+  }
+  function movers() {
+    var withGrowth = DATA.rows.filter(function (r) {
+      return r.change_7d !== null && r.change_7d !== undefined && isFinite(r.change_7d);
+    });
+    return {
+      gainers: withGrowth.slice().sort(byGrowthDesc).slice(0, 8),
+      fallers: withGrowth.slice().sort(byGrowthAsc).slice(0, 5),
+      counted: withGrowth.length
+    };
+  }
+  function moverRow(r) {
+    var growthClass = r.change_7d >= 0 ? 'pos' : 'neg';
+    return el('tr', {
+      tabindex: '0',
+      onclick: function () { openDetail(r.slug); },
+      onkeydown: function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(r.slug); } }
+    },
+      el('td', { class: 'num', text: String(r.rank) }),
+      el('td', null, el('div', { class: 'name' },
+        el('span', null, el('b', { text: r.name }), r.watchlist ? el('span', { class: 'watch', text: 'watchlist' }) : null),
+        el('span', { class: 'sub', text: (r.category || 'Other') + ' on ' + (r.chains && r.chains.length ? r.chains.slice(0, 2).join(', ') : 'an unnamed chain') })
+      )),
+      el('td', { class: 'num ' + growthClass, text: fmtPct(r.change_7d) }),
+      el('td', { class: 'num', text: fmtUsd(r.tvl_usd) }),
+      el('td', { class: 'num', text: fmtUsd(r.implied_value_usd) })
+    );
+  }
+  function moversPanel() {
+    var m = movers();
+    function moverTable(list, caption) {
+      var tbody = el('tbody');
+      list.forEach(function (r) { tbody.appendChild(moverRow(r)); });
+      return el('div', { class: 'table-wrap' },
+        el('table', null,
+          el('caption', { class: 'sub', text: caption }),
+          el('thead', null, el('tr', null,
+            el('th', { scope: 'col', text: 'Rank' }),
+            el('th', { scope: 'col', text: 'Protocol' }),
+            el('th', { scope: 'col', text: '7d' }),
+            el('th', { scope: 'col', text: 'TVL' }),
+            el('th', { scope: 'col', text: 'Implied value' })
+          )),
+          tbody
+        )
+      );
+    }
+    return el('section', { class: 'panel movers' },
+      el('h2', { text: 'Top movers this week' }),
+      el('p', { class: 'sub', text: 'The largest seven-day TVL moves among the ' + m.counted + ' pre-token rows that report one. Momentum is a signal, not a verdict: a fast riser can still be a weak farm, and a faller can be a cheap one. Select a row for its model and farm plan.' }),
+      moverTable(m.gainers, 'Biggest gainers by seven-day TVL change.'),
+      moverTable(m.fallers, 'Biggest fallers by seven-day TVL change.')
+    );
+  }
+
   function header() {
     return el('header', { class: 'top' },
       el('div', { class: 'brand' }, el('span', { class: 'mark' }), el('span', { class: 'brand-name', text: 'Token Radar' })),
@@ -432,7 +497,10 @@
     shell.appendChild(lede());
     shell.appendChild(controls());
     shell.appendChild(state.tab === 'pre-token' ? boardTable() : liveTable());
-    if (state.tab === 'pre-token') shell.appendChild(modelPanel());
+    if (state.tab === 'pre-token') {
+      shell.appendChild(moversPanel());
+      shell.appendChild(modelPanel());
+    }
     app.appendChild(shell);
     app.setAttribute('aria-busy', 'false');
     if (!dialog.isConnected) app.appendChild(dialog);
